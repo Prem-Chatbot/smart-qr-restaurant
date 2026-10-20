@@ -8,8 +8,8 @@ import {
   CreditCard, 
   ArrowLeft, 
   PlusCircle, 
-  AlertCircle,
-  Receipt
+  AlertCircle, 
+  Receipt 
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { formatTHB } from '../../utils/pricing';
@@ -29,8 +29,6 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // State สำหรับควบคุมการเปิด-ปิดหน้าต่างชำระเงินในหน้านี้โดยตรง
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isPaid, setIsPaid] = useState<boolean>(() => {
     return localStorage.getItem(`paid_${orderId}`) === 'true';
@@ -69,20 +67,23 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
     return () => unsubscribe();
   }, [orderId]);
 
-  // ฟังก์ชันเมื่อกดยืนยันชำระเงินสำเร็จในหน้าต่าง Popup
-  const handlePaymentSuccess = async () => {
+  // ฟังก์ชันชำระเงินสำเร็จ: อัปเดต State ทันทีในจังหวะเดียว (Single Tick Update)
+  const handlePaymentSuccess = () => {
+    // 1. เปลี่ยน State ทันที
     setIsPaid(true);
-    setIsModalOpen(false);
+    setOrder((prev) => (prev ? { ...prev, paymentStatus: 'paid' } : null));
     localStorage.setItem(`paid_${orderId}`, 'true');
+    setIsModalOpen(false);
 
+    // 2. อัปเดต Firestore เบื้องหลังแบบไม่ขวางการแสดงผล
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
+      updateDoc(orderRef, {
         paymentStatus: 'paid',
         paymentTxnId: 'TXN-' + Date.now()
-      });
+      }).catch((e) => console.warn('Firestore background update ignored:', e));
     } catch (e) {
-      console.warn('Update Firestore pass (local saved)');
+      console.warn('Updated locally');
     }
   };
 
@@ -150,12 +151,10 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8 space-y-6">
-      
-      {/* Back button and Header */}
       <div className="flex items-center justify-between">
         <button
           onClick={onBackToMenu}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-amber-700 transition py-1 px-2.5 rounded-lg hover:bg-stone-100"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-amber-700 transition py-1 px-2.5 rounded-lg hover:bg-stone-100 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>กลับสู่หน้าเมนู</span>
@@ -166,7 +165,6 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
         </span>
       </div>
 
-      {/* Main Status Hero Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-stone-200 text-center relative overflow-hidden">
         {order.status === 'cancelled' ? (
           <div className="space-y-3">
@@ -174,9 +172,6 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
               <XCircle className="w-10 h-10" />
             </div>
             <h2 className="text-2xl font-bold text-red-600">ออเดอร์ถูกยกเลิก</h2>
-            <p className="text-xs text-stone-500 max-w-md mx-auto">
-              คำสั่งซื้อนี้ถูกยกเลิกโดยทางร้าน หากมีข้อสงสัยโปรดสอบถามพนักงานที่เคาน์เตอร์
-            </p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -189,12 +184,8 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                 {order.status === 'preparing' && '🍳 กำลังปรุงอาหารในครัว...'}
                 {order.status === 'served' && '🎉 เสิร์ฟอาหารเรียบร้อยแล้ว'}
               </h2>
-              <p className="text-xs sm:text-sm text-stone-500 mt-1">
-                ระบบกำลังติดตามแบบ Real-time ข้อมูลจะอัปเดตอัตโนมัติเมื่อสถานะเปลี่ยน
-              </p>
             </div>
 
-            {/* Stepper Steps */}
             <div className="pt-2 pb-4">
               <div className="flex items-center justify-between relative max-w-md mx-auto">
                 <div className="absolute top-1/2 left-6 right-6 -translate-y-1/2 h-1 bg-stone-100 z-0" />
@@ -232,7 +223,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
               </div>
             </div>
 
-            {/* Payment Status Pill & Action */}
+            {/* กล่องสถานะการชำระเงิน */}
             <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
@@ -267,7 +258,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(true)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 cursor-pointer"
                 >
                   ชำระเงินตอนนี้ (QR Code)
                 </button>
@@ -283,16 +274,12 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
         )}
       </div>
 
-      {/* Order Item Details Breakdown */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-stone-200 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-stone-500" />
             <h3 className="font-bold text-stone-800 text-sm">รายการอาหารที่สั่ง ({order.items.length} รายการ)</h3>
           </div>
-          <span className="text-xs text-stone-400">
-            {new Date(order.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-          </span>
         </div>
 
         <div className="divide-y divide-stone-100">
@@ -302,11 +289,6 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                 <span className="text-sm font-semibold text-stone-800">
                   {item.quantity}x {item.name}
                 </span>
-                {item.notes && (
-                  <p className="text-xs text-stone-400 mt-0.5">
-                    หมายเหตุ: {item.notes}
-                  </p>
-                )}
               </div>
               <span className="text-sm font-bold text-stone-700">
                 {formatTHB(item.price * item.quantity)}
@@ -315,34 +297,15 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
           ))}
         </div>
 
-        {order.customerNotes && (
-          <div className="p-3 bg-amber-50/60 rounded-xl text-xs text-amber-900 border border-amber-200">
-            <strong>หมายเหตุถึงครัว:</strong> {order.customerNotes}
-          </div>
-        )}
-
-        {/* Order Totals Summary */}
-        <div className="pt-3 border-t border-stone-200 space-y-1.5 text-xs text-stone-600">
-          <div className="flex justify-between">
-            <span>ยอดรวมค่าอาหาร</span>
-            <span>{formatTHB(order.subtotalAmount || order.totalAmount)}</span>
-          </div>
-          {order.vatAmount ? (
-            <div className="flex justify-between text-stone-400">
-              <span>ภาษีมูลค่าเพิ่ม VAT 7%</span>
-              <span>{formatTHB(order.vatAmount)}</span>
-            </div>
-          ) : null}
-          <div className="flex justify-between text-base font-bold text-stone-900 pt-2 border-t border-stone-200">
-            <span>ยอดสุทธิ</span>
-            <span className="text-lg text-amber-600">{formatTHB(order.totalAmount)}</span>
-          </div>
+        <div className="flex justify-between text-base font-bold text-stone-900 pt-2 border-t border-stone-200">
+          <span>ยอดสุทธิ</span>
+          <span className="text-lg text-amber-600">{formatTHB(order.totalAmount)}</span>
         </div>
 
         <div className="pt-2">
           <button
             onClick={onBackToMenu}
-            className="w-full py-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-semibold flex items-center justify-center gap-2 transition"
+            className="w-full py-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-amber-600" />
             <span>สั่งอาหารเพิ่มในโต๊ะนี้</span>
@@ -350,14 +313,13 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
         </div>
       </div>
 
-      {/* ฝังหน้าต่าง PaymentModal ไว้ตรงนี้โดยตรง ไม่ต้องผ่าน App.tsx */}
+      {/* หน้าต่างชำระเงิน */}
       <PaymentModal
         order={order}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onPaymentSuccess={handlePaymentSuccess}
       />
-
     </div>
   );
 };

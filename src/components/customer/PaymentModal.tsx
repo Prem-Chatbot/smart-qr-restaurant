@@ -30,7 +30,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay_qr');
   const [secondsLeft, setSecondsLeft] = useState<number>(300);
 
-  // Countdown timer
   useEffect(() => {
     if (secondsLeft <= 0) return;
     const interval = setInterval(() => {
@@ -39,16 +38,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return () => clearInterval(interval);
   }, [secondsLeft]);
 
-  // เมื่อกดปุ่ม -> ปรับสถานะสำเร็จและปิดหน้าต่าง Popup ทันทีในครั้งเดียว
   const handleSimulatePayment = () => {
-    try {
-      if (typeof onPaymentSuccess === 'function') {
-        onPaymentSuccess();
-      }
-    } catch (e) {
-      console.log('Error triggering payment success:', e);
+    if (typeof onPaymentSuccess === 'function') {
+      onPaymentSuccess();
     }
-    // ปิดหน้าต่างทันที ไม่ต้องรอหน้าจอสำเร็จซ้อนอีกรอบ
     onClose();
   };
 
@@ -63,7 +56,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         role="dialog"
         aria-modal="true"
       >
-        {/* Sandbox Warning Banner */}
         <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-4 py-2.5 flex items-center justify-between text-xs font-medium">
           <div className="flex items-center gap-1.5">
             <AlertTriangle className="w-4 h-4 text-amber-200 shrink-0" />
@@ -78,7 +70,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Header */}
         <div className="p-5 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
           <div>
             <h3 className="font-bold text-lg text-stone-900">ชำระค่าอาหาร</h3>
@@ -94,9 +85,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         </div>
 
-        {/* Content Body */}
         <div className="p-5 space-y-4">
-          {/* Payment Method Selector */}
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
@@ -138,7 +127,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </button>
           </div>
 
-          {/* Method Details */}
           {paymentMethod === 'promptpay_qr' && (
             <div className="rounded-2xl overflow-hidden border border-stone-200 shadow-sm bg-white text-center flex flex-col items-center">
               <div className="p-4 flex flex-col items-center w-full">
@@ -171,15 +159,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
               <div className="bg-white p-3 rounded-xl border border-stone-200 text-xs text-stone-500 space-y-2">
                 <div className="p-2 bg-amber-50 rounded border border-amber-200 text-amber-800 text-[11px]">
-                  *คำเตือนความปลอดภัย: ระบบ Smart QR Restaurant ใช้ Payment Gateway Tokenization ภายนอก จะไม่มีการเก็บข้อมูลบัตรเครดิตตรงๆ ในเซิร์ฟเวอร์
+                  *คำเตือนความปลอดภัย: ใช้ระบบ Tokenization จำลอง ไม่มีการตัดบัตรจริง
                 </div>
                 <div className="flex justify-between text-stone-700">
                   <span>เลขบัตรจำลอง:</span>
                   <span className="font-mono font-medium">•••• •••• •••• 4242</span>
-                </div>
-                <div className="flex justify-between text-stone-700">
-                  <span>ประเภท:</span>
-                  <span>Visa Sandbox Test Card</span>
                 </div>
               </div>
             </div>
@@ -195,7 +179,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
-          {/* Action: Simulate Payment Button */}
           <div className="pt-2">
             <button
               type="button"
@@ -205,9 +188,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <CheckCircle2 className="w-4 h-4" />
               <span>จำลองการชำระเงินสำเร็จ (Simulate Webhook Trigger)</span>
             </button>
-            <p className="text-[11px] text-stone-400 text-center mt-2">
-              ปุ่มนี้จะทำการยืนยันยอดเงินและปรับสถานะเป็น "paid" ทันที
-            </p>
           </div>
         </div>
       </div>

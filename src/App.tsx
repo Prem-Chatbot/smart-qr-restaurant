@@ -10,7 +10,6 @@ import {
 import { CustomerView } from './components/customer/CustomerView';
 import { MenuCustomizationModal } from './components/customer/MenuCustomizationModal';
 import { CartDrawer } from './components/customer/CartDrawer';
-import { PaymentModal } from './components/customer/PaymentModal';
 import { OrderTracker } from './components/customer/OrderTracker';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { KitchenDisplay } from './components/admin/KitchenDisplay';
@@ -35,10 +34,7 @@ import {
   ChefHat, 
   QrCode, 
   LayoutDashboard, 
-  Sparkles, 
-  CheckCircle2, 
-  X, 
-  Table 
+  X 
 } from 'lucide-react';
 
 function RestaurantApp() {
@@ -70,10 +66,9 @@ function RestaurantApp() {
 
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-  const [isPaymentOpen, setIsPaymentOpen] = useState<boolean>(false);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(() => {
-    return localStorage.getItem('smart_qr_active_order') || null;
-  });
+  
+  // ให้หน้าจอเริ่มต้นเป็นหน้าเมนูหลักเสมอ
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
 
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
 
@@ -92,6 +87,10 @@ function RestaurantApp() {
     const tableParam = params.get('table');
     if (tableParam) {
       setTableNumber(tableParam.toUpperCase());
+    }
+    const orderParam = params.get('orderId');
+    if (orderParam) {
+      setActiveOrderId(orderParam);
     }
   }, []);
 
@@ -188,7 +187,6 @@ function RestaurantApp() {
   // Cart operations
   const handleAddToCart = (cartItem: CartItem) => {
     setCartItems((prev) => {
-      // Check if exact same item with exact same notes and spicy level exists
       const existingIdx = prev.findIndex(
         (it) => it.menuItemId === cartItem.menuItemId && it.notes === cartItem.notes && it.spicyLevel === cartItem.spicyLevel
       );
@@ -224,20 +222,26 @@ function RestaurantApp() {
   const handleOrderPlaced = (order: Order) => {
     setActiveOrderId(order.id);
     localStorage.setItem('smart_qr_active_order', order.id);
-    // Open payment modal right after order placement
-    setIsPaymentOpen(true);
   };
 
-  // Select View Guard: If clicking admin area without being logged in, open login modal
+  // Select View Guard
   const handleSelectView = (view: 'customer' | 'admin' | 'kds' | 'menu-manage' | 'table-manage') => {
-    if (view !== 'customer' && !currentUser) {
+    if (view === 'customer') {
+      setActiveOrderId(null);
+      localStorage.removeItem('smart_qr_active_order');
+    } else if (!currentUser) {
       setIsAdminLoginOpen(true);
       return;
     }
     setCurrentView(view);
   };
 
-  const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
+  const handleBackToMenu = () => {
+    setActiveOrderId(null);
+    localStorage.removeItem('smart_qr_active_order');
+    setCurrentView('customer');
+  };
+
   const totalCartCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
 
   return (
@@ -260,7 +264,7 @@ function RestaurantApp() {
             <div className="flex items-center gap-1 sm:gap-2 py-2.5 overflow-x-auto scrollbar-none text-xs font-semibold">
               <button
                 onClick={() => setCurrentView('admin')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
                   currentView === 'admin'
                     ? 'bg-stone-900 text-white shadow-2xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -272,7 +276,7 @@ function RestaurantApp() {
 
               <button
                 onClick={() => setCurrentView('kds')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
                   currentView === 'kds'
                     ? 'bg-orange-600 text-white shadow-2xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -284,7 +288,7 @@ function RestaurantApp() {
 
               <button
                 onClick={() => setCurrentView('menu-manage')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
                   currentView === 'menu-manage'
                     ? 'bg-amber-600 text-white shadow-2xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -296,7 +300,7 @@ function RestaurantApp() {
 
               <button
                 onClick={() => setCurrentView('table-manage')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
                   currentView === 'table-manage'
                     ? 'bg-emerald-600 text-white shadow-2xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -317,8 +321,7 @@ function RestaurantApp() {
         {currentView === 'customer' && activeOrderId ? (
           <OrderTracker
             orderId={activeOrderId}
-            onBackToMenu={() => setActiveOrderId(null)}
-            onOpenPayment={() => setIsPaymentOpen(true)}
+            onBackToMenu={handleBackToMenu}
           />
         ) : currentView === 'customer' ? (
           /* Customer Food Catalog View */
@@ -360,6 +363,7 @@ function RestaurantApp() {
                 setTableNumber(tbl);
                 setCurrentView('customer');
                 setActiveOrderId(null);
+                localStorage.removeItem('smart_qr_active_order');
               }}
             />
           </div>
@@ -388,18 +392,6 @@ function RestaurantApp() {
         onOrderPlaced={handleOrderPlaced}
       />
 
-      {/* Payment Sandbox Modal */}
-      {isPaymentOpen && activeOrder && (
-        <PaymentModal
-          order={activeOrder}
-          isOpen={isPaymentOpen}
-          onClose={() => setIsPaymentOpen(false)}
-          onPaymentSuccess={() => {
-            // Stay in order tracking view to see updated paid status
-          }}
-        />
-      )}
-
       {/* Table Selector Modal */}
       {isTableSelectModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -408,7 +400,7 @@ function RestaurantApp() {
               <h3 className="font-bold text-base text-stone-900">เลือกหมายเลขโต๊ะของคุณ</h3>
               <button
                 onClick={() => setIsTableSelectModalOpen(false)}
-                className="w-7 h-7 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center"
+                className="w-7 h-7 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -426,8 +418,9 @@ function RestaurantApp() {
                     setTableNumber(t);
                     setIsTableSelectModalOpen(false);
                     setActiveOrderId(null);
+                    localStorage.removeItem('smart_qr_active_order');
                   }}
-                  className={`py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                     tableNumber === t
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-600/25'
                       : 'bg-stone-100 text-stone-700 hover:bg-amber-50 hover:text-amber-700'
@@ -440,7 +433,7 @@ function RestaurantApp() {
 
             <button
               onClick={() => setIsTableSelectModalOpen(false)}
-              className="w-full py-2.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition"
+              className="w-full py-2.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer"
             >
               ปิดหน้าต่าง
             </button>
