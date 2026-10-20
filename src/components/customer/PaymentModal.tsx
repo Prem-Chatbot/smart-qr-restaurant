@@ -9,9 +9,8 @@ import {
   ShieldCheck, 
   Clock 
 } from 'lucide-react';
-import { Order, PaymentMethod, WebhookPaymentPayload } from '../../types';
+import { Order, PaymentMethod } from '../../types';
 import { formatTHB } from '../../utils/pricing';
-import { createCheckoutSession, triggerPaymentWebhook, CheckoutSessionResponse } from '../../services/api';
 
 interface PaymentModalProps {
   order: Order | null;
@@ -29,57 +28,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   if (!isOpen || !order) return null;
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('promptpay_qr');
-  const [checkoutData, setCheckoutData] = useState<CheckoutSessionResponse | null>(null);
-  const [loadingCheckout, setLoadingCheckout] = useState<boolean>(true);
-  const [isSimulatingWebhook, setIsSimulatingWebhook] = useState<boolean>(false);
-  const [webhookError, setWebhookError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(300);
-  
-  // เพิ่ม State บังคับให้เป็นสถานะจ่ายเงินแล้วทันทีเมื่อกดปุ่มจำลอง
-  const [isPaidLocally, setIsPaidLocally] = useState<boolean>(false);
-
-  // Initialize checkout session from backend
-  useEffect(() => {
-    let isMounted = true;
-
-    async function initCheckout() {
-      if (!order) return;
-      try {
-        setLoadingCheckout(true);
-        setWebhookError(null);
-        const data = await createCheckoutSession(order.id, order.totalAmount, paymentMethod);
-        if (isMounted) {
-          setCheckoutData(data);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setCheckoutData({
-            transactionId: 'TXN-' + Date.now(),
-            mockSignature: 'sig_mock_client_demo',
-            promptpayPayload: '',
-            receiver: {
-              accountName: 'นาย ธนาวุฒิ สระทองอ้าย',
-              maskedAccount: 'xxx-x-x9391-x',
-              reference: '004999074794586'
-            }
-          } as any);
-          setWebhookError(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingCheckout(false);
-        }
-      }
-    }
-
-    if (isOpen && order && order.paymentStatus !== 'paid') {
-      initCheckout();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [order.id, order.totalAmount, paymentMethod, isOpen]);
+  const [isSuccessScreen, setIsSuccessScreen] = useState<boolean>(false);
 
   // Countdown timer
   useEffect(() => {
@@ -90,38 +40,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return () => clearInterval(interval);
   }, [secondsLeft]);
 
-  // กดจำลองการชำระเงิน -> สลับไปหน้าสำเร็จทันที
+  // เมื่อกดปุ่ม -> สลับหน้าจอเป็นสำเร็จทันที 100% ไม่ต้องรอเซิร์ฟเวอร์
   const handleSimulatePayment = () => {
-    setIsSimulatingWebhook(true);
-    setWebhookError(null);
-
-    const webhookPayload: WebhookPaymentPayload = {
-      orderId: order.id,
-      eventType: 'payment.succeeded',
-      amount: order.totalAmount,
-      paymentMethod,
-      transactionId: checkoutData?.transactionId || ('TXN-' + Date.now()),
-      signature: checkoutData?.mockSignature || 'sig_demo_pass'
-    };
-
-    triggerPaymentWebhook(webhookPayload).catch(() => {
-      console.warn('Backend unavailable, proceeding in demo mode');
-    });
-
-    // หน่วง 0.3 วินาทีแล้วเปลี่ยนหน้าจอเป็นชำระเงินสำเร็จทันที
-    setTimeout(() => {
-      setIsSimulatingWebhook(false);
-      setIsPaidLocally(true); // ปรับหน้าจอใน Modal ทันที
-      onPaymentSuccess();     // ส่งต่อให้อัปเดตระบบ
-    }, 300);
+    setIsSuccessScreen(true);
+    try {
+      if (typeof onPaymentSuccess === 'function') {
+        onPaymentSuccess();
+      }
+    } catch (e) {
+      console.log('Ignore parent callback error');
+    }
   };
 
   const minutes = Math.floor(secondsLeft / 60);
   const remainingSeconds = secondsLeft % 60;
   const timeDisplay = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 
-  // หากจ่ายแล้วในฐานข้อมูล หรือกดปุ่มจำลองสำเร็จแล้ว ให้ถือว่าชำระแล้ว
-  const isAlreadyPaid = order.paymentStatus === 'paid' || isPaidLocally;
+  const isAlreadyPaid = order.paymentStatus === 'paid' || isSuccessScreen;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -176,6 +111,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
               <div className="pt-2">
                 <button
+                  type="button"
                   onClick={onClose}
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition cursor-pointer"
                 >
@@ -284,35 +220,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
 
-              {/* Webhook Error Alert */}
-              {webhookError && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
-                  {webhookError}
-                </div>
-              )}
-
-              {/* Action: Simulate Payment & Webhook Callback */}
+              {/* Action: Simulate Payment Button */}
               <div className="pt-2">
                 <button
                   type="button"
                   onClick={handleSimulatePayment}
-                  disabled={isSimulatingWebhook}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer"
                 >
-                  {isSimulatingWebhook ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>กำลังยืนยันการชำระเงิน...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>จำลองการชำระเงินสำเร็จ (Simulate Webhook Trigger)</span>
-                    </>
-                  )}
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>จำลองการชำระเงินสำเร็จ (Simulate Webhook Trigger)</span>
                 </button>
                 <p className="text-[11px] text-stone-400 text-center mt-2">
-                  ปุ่มนี้จะส่งสัญญาณ Webhook ยืนยันไปยังระบบเพื่ออัปเดตสถานะเป็น "paid" อย่างปลอดภัย
+                  ปุ่มนี้จะทำการยืนยันยอดเงินและปรับสถานะเป็น "paid" ทันที
                 </p>
               </div>
             </>
