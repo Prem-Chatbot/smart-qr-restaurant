@@ -22,6 +22,9 @@ interface TableManagementProps {
   onSelectTableForCustomer: (tableNumber: string) => void;
 }
 
+// โดเมนหลักบน Vercel สำหรับให้สมาร์ตโฟนสแกนเข้าได้จากทุกที่
+const PRODUCTION_URL = 'https://smart-qr-restaurant.vercel.app';
+
 export const TableManagement: React.FC<TableManagementProps> = ({
   tables,
   onSelectTableForCustomer
@@ -31,14 +34,26 @@ export const TableManagement: React.FC<TableManagementProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [qrThumbnails, setQrThumbnails] = useState<{ [tableNumber: string]: string }>({});
 
+  // ฟังก์ชันหา URL ฐาน: ถ้ากำลังรัน localhost ให้ใช้ลิงก์ Vercel ทันที เพื่อให้มือถือสแกนติด
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return PRODUCTION_URL;
+      }
+      return window.location.origin;
+    }
+    return PRODUCTION_URL;
+  };
+
   // Generate QR thumbnail for tables
   useEffect(() => {
     let isMounted = true;
     async function genThumbnails() {
       const thumbs: { [key: string]: string } = {};
+      const base = getBaseUrl();
       for (const t of tables) {
         try {
-          const url = `${window.location.origin}/?table=${t.tableNumber}`;
+          const url = `${base}/?table=${t.tableNumber}`;
           thumbs[t.tableNumber] = await QRCode.toDataURL(url, {
             width: 140,
             margin: 1,
@@ -57,7 +72,8 @@ export const TableManagement: React.FC<TableManagementProps> = ({
   const handleOpenQrModal = async (table: RestaurantTable) => {
     setSelectedTable(table);
     try {
-      const targetUrl = `${window.location.origin}/?table=${table.tableNumber}`;
+      const base = getBaseUrl();
+      const targetUrl = `${base}/?table=${table.tableNumber}`;
       const fullQr = await QRCode.toDataURL(targetUrl, {
         width: 320,
         margin: 2,
@@ -70,7 +86,8 @@ export const TableManagement: React.FC<TableManagementProps> = ({
   };
 
   const handleCopyLink = (tableNumber: string) => {
-    const url = `${window.location.origin}/?table=${tableNumber}`;
+    const base = getBaseUrl();
+    const url = `${base}/?table=${tableNumber}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -91,7 +108,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
   const handleInitDefaultTables = async () => {
     try {
       for (const t of INITIAL_TABLES) {
-        await setDoc(doc(db, 'tables', t.id), t);
+        await setDoc(doc(db, 'tables', (t as any).id || t.tableNumber), t);
       }
     } catch (e) {
       console.error(e);
@@ -115,7 +132,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
         {tables.length === 0 && (
           <button
             onClick={handleInitDefaultTables}
-            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 flex items-center gap-1.5 transition"
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 flex items-center gap-1.5 transition cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
             <span>สร้างโต๊ะเริ่มต้น (T01 - T08)</span>
@@ -188,7 +205,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
                   <span className="text-stone-400 mr-1">สถานะ:</span>
                   <button
                     onClick={() => handleChangeTableStatus(table, 'available')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition cursor-pointer ${
                       table.status === 'available' ? 'bg-emerald-600 text-white font-bold' : 'bg-stone-100 text-stone-600'
                     }`}
                   >
@@ -196,7 +213,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
                   </button>
                   <button
                     onClick={() => handleChangeTableStatus(table, 'occupied')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition cursor-pointer ${
                       table.status === 'occupied' ? 'bg-amber-600 text-white font-bold' : 'bg-stone-100 text-stone-600'
                     }`}
                   >
@@ -206,7 +223,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
 
                 <button
                   onClick={() => onSelectTableForCustomer(table.tableNumber)}
-                  className="w-full py-1.5 px-3 rounded-lg bg-stone-100 hover:bg-amber-50 hover:text-amber-800 text-stone-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  className="w-full py-1.5 px-3 rounded-lg bg-stone-100 hover:bg-amber-50 hover:text-amber-800 text-stone-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <ExternalLink className="w-3 h-3 text-amber-600" />
                   <span>เปิดมุมมองลูกค้าโต๊ะนี้</span>
@@ -228,7 +245,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
               </span>
               <button
                 onClick={() => setSelectedTable(null)}
-                className="w-7 h-7 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center"
+                className="w-7 h-7 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -258,7 +275,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
             <div className="space-y-2 pt-2">
               <button
                 onClick={() => handleCopyLink(selectedTable.tableNumber)}
-                className="w-full py-2.5 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-semibold flex items-center justify-center gap-2 transition"
+                className="w-full py-2.5 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 {copied ? (
                   <>
@@ -278,7 +295,7 @@ export const TableManagement: React.FC<TableManagementProps> = ({
                   onSelectTableForCustomer(selectedTable.tableNumber);
                   setSelectedTable(null);
                 }}
-                className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 flex items-center justify-center gap-2 transition"
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4" />
                 <span>เปิดทดสอบสั่งอาหารโต๊ะนี้ทันที</span>
