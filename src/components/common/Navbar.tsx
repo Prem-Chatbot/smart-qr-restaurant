@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div>
                 <span className="font-bold text-lg sm:text-xl text-stone-900 tracking-tight block leading-tight">
-                  Smart QR <span className="text-amber-600">Restaurant</span>
+                  P333 <span className="text-amber-600">Restaurant</span>
                 </span>
                 <span className="text-xs text-stone-500 hidden sm:inline-block">
                   สั่งอาหารสะดวกผ่าน QR Code เรียลไทม์

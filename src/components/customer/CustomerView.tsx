@@ -76,7 +76,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
               <span className="text-xs text-amber-300 font-medium">ระบบเปิดรับออเดอร์ปกติ</span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
-              ยินดีต้อนรับสู่ Smart QR Restaurant
+            ยินดีต้อนรับสู่ Prem333 Restaurant
             </h1>
             <p className="text-stone-300 text-xs sm:text-sm mt-1 max-w-xl">
               เลือกเมนูอาหารจานโปรด สั่งตรงถึงห้องครัวได้ทันทีผ่านระบบอัตโนมัติ ไม่ต้องรอเรียกพนักงาน

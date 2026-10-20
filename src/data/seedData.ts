@@ -129,3 +129,14 @@ export const INITIAL_MENUS: MenuItem[] = [
     spicyLevel: 0
   }
 ];
+// ข้อมูลโต๊ะเริ่มต้นของร้าน
+export const INITIAL_TABLES = [
+  { tableNumber: 'T01', capacity: 2, status: 'available' },
+  { tableNumber: 'T02', capacity: 4, status: 'available' },
+  { tableNumber: 'T03', capacity: 4, status: 'available' },
+  { tableNumber: 'T04', capacity: 6, status: 'available' },
+  { tableNumber: 'T05', capacity: 2, status: 'available' },
+  { tableNumber: 'T06', capacity: 4, status: 'available' },
+  { tableNumber: 'T07', capacity: 8, status: 'available' },
+  { tableNumber: 'T08', capacity: 4, status: 'available' },
+];
