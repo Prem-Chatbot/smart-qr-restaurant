@@ -49,7 +49,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setCheckoutData(data);
         }
       } catch (err: any) {
-        // Fallback อัตโนมัติเมื่ออยู่บน Vercel (ไม่มี Node.js Express server)
+        // Fallback อัตโนมัติเมื่ออยู่บน Vercel
         if (isMounted) {
           setCheckoutData({
             transactionId: 'TXN-' + Date.now(),
@@ -88,36 +88,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return () => clearInterval(interval);
   }, [secondsLeft]);
 
-  // Trigger Simulated Webhook Handler
-  const handleSimulatePayment = async () => {
-    try {
-      setIsSimulatingWebhook(true);
-      setWebhookError(null);
+  // Trigger Simulated Webhook Handler (แบบทันที ไม่ติดค้าง Timeout)
+  const handleSimulatePayment = () => {
+    setIsSimulatingWebhook(true);
+    setWebhookError(null);
 
-      const webhookPayload: WebhookPaymentPayload = {
-        orderId: order.id,
-        eventType: 'payment.succeeded',
-        amount: order.totalAmount,
-        paymentMethod,
-        transactionId: checkoutData?.transactionId || ('TXN-' + Date.now()),
-        signature: checkoutData?.mockSignature || 'sig_demo_pass'
-      };
+    const webhookPayload: WebhookPaymentPayload = {
+      orderId: order.id,
+      eventType: 'payment.succeeded',
+      amount: order.totalAmount,
+      paymentMethod,
+      transactionId: checkoutData?.transactionId || ('TXN-' + Date.now()),
+      signature: checkoutData?.mockSignature || 'sig_demo_pass'
+    };
 
-      // พยายามยิง backend ถ้าไม่ได้ (เช่นบน Vercel) จะ fallback ให้อัตโนมัติ
-      try {
-        await triggerPaymentWebhook(webhookPayload);
-      } catch (err) {
-        console.warn('Backend webhook endpoint unreachable, continuing in client simulation mode');
-      }
+    // ส่งคำขอเบื้องหลังแบบไม่รอ response
+    triggerPaymentWebhook(webhookPayload).catch(() => {
+      console.warn('Backend unavailable, proceeding with demo mode');
+    });
 
-      // ปรับสถานะสำเร็จทันที
-      onPaymentSuccess();
-    } catch (err: any) {
-      console.error('Webhook simulation error:', err);
-      setWebhookError(err.message || 'การจำลอง Webhook ล้มเหลว');
-    } finally {
+    // แสดงสถานะหมุนโหลด 0.5 วินาทีแล้วตัดเข้าหน้าสำเร็จทันที
+    setTimeout(() => {
       setIsSimulatingWebhook(false);
-    }
+      onPaymentSuccess();
+    }, 500);
   };
 
   const minutes = Math.floor(secondsLeft / 60);
