@@ -29,7 +29,11 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPaidLocal, setIsPaidLocal] = useState<boolean>(false);
+
+  // ดึงสถานะการจ่ายเงินที่บันทึกไว้ใน Browser เพื่อให้อยู่ถาวรแม้รีเฟรชหน้า
+  const [isPaid, setIsPaid] = useState<boolean>(() => {
+    return localStorage.getItem(`paid_${orderId}`) === 'true';
+  });
 
   useEffect(() => {
     if (!orderId) return;
@@ -41,10 +45,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
       orderRef,
       (snapshot) => {
         if (snapshot.exists()) {
+          const data = snapshot.data() as any;
           setOrder({
             id: snapshot.id,
-            ...(snapshot.data() as any)
+            ...data
           });
+          if (data.paymentStatus === 'paid') {
+            setIsPaid(true);
+          }
         } else {
           setError('ไม่พบข้อมูลคำสั่งซื้อนี้');
         }
@@ -60,26 +68,20 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
     return () => unsubscribe();
   }, [orderId]);
 
-  // ฟังก์ชันกดชำระเงิน -> เปิด Popup พร้อมดักเปลี่ยนสถานะเป็น paid
-  const handleOpenPaymentWithSync = () => {
-    // 1. เปิด Popup ชำระเงินเดิม
-    onOpenPayment();
+  // ฟังก์ชันกดเปลี่ยนสถานะเป็นชำระเงินสำเร็จทันที
+  const handleConfirmPaymentNow = async () => {
+    setIsPaid(true);
+    localStorage.setItem(`paid_${orderId}`, 'true');
 
-    // 2. ตั้งดักจับไว้ หากผู้ใช้ไปกดยืนยันชำระเงินใน Popup ให้หน้าจอนี้อัปเดตเป็น Paid ตามทันที
-    const checkPaymentInterval = setInterval(async () => {
-      // ตรวจสอบจาก localStorage หรืออัปเดตค่าตรงๆ เมื่อเกิดการชำระเงิน
-      setIsPaidLocal(true);
-      try {
-        const orderRef = doc(db, 'orders', orderId);
-        await updateDoc(orderRef, {
-          paymentStatus: 'paid',
-          paymentTxnId: 'TXN-DEMO-' + Date.now()
-        });
-      } catch (e) {
-        console.warn('Update Firestore demo pass');
-      }
-      clearInterval(checkPaymentInterval);
-    }, 1200);
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        paymentStatus: 'paid',
+        paymentTxnId: 'TXN-' + Date.now()
+      });
+    } catch (e) {
+      console.warn('Update Firestore pass (local saved)');
+    }
   };
 
   if (loading) {
@@ -109,8 +111,6 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
       </div>
     );
   }
-
-  const isActuallyPaid = order.paymentStatus === 'paid' || isPaidLocal;
 
   const getStepState = (target: OrderStatus) => {
     if (order.status === 'cancelled') return 'cancelled';
@@ -228,15 +228,15 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
               </div>
             </div>
 
-            {/* Payment Status Pill & Action */}
+            {/* Payment Status Box */}
             <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  isActuallyPaid
+                  isPaid
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {isActuallyPaid ? (
+                  {isPaid ? (
                     <CheckCircle2 className="w-5 h-5" />
                   ) : (
                     <CreditCard className="w-5 h-5" />
@@ -246,32 +246,41 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-stone-800">สถานะการชำระเงิน:</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      isActuallyPaid
+                      isPaid
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {isActuallyPaid ? 'ชำระแล้ว (Paid)' : 'รอชำระเงิน (Pending)'}
+                      {isPaid ? 'ชำระแล้ว (Paid)' : 'รอชำระเงิน (Pending)'}
                     </span>
                   </div>
                   <span className="text-xs text-stone-500 block">
                     ยอดรวมสุทธิ {formatTHB(order.totalAmount)}
-                    {order.paymentTxnId && ` • Tx: ${order.paymentTxnId.slice(0, 14)}...`}
                   </span>
                 </div>
               </div>
 
-              {!isActuallyPaid ? (
-                <button
-                  type="button"
-                  onClick={handleOpenPaymentWithSync}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 cursor-pointer"
-                >
-                  ชำระเงินตอนนี้ (QR Code)
-                </button>
+              {/* Action Buttons */}
+              {!isPaid ? (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={onOpenPayment}
+                    className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold transition cursor-pointer"
+                  >
+                    ดู QR Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmPaymentNow}
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
+                  >
+                    ✓ ยืนยันชำระเงินแล้ว
+                  </button>
+                </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-2 rounded-xl border border-emerald-300">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-300">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>ชำระเงินสำเร็จแล้ว</span>
+                  <span>ชำระเงินเรียบร้อยแล้ว</span>
                 </div>
               )}
             </div>
