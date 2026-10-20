@@ -34,6 +34,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [isSimulatingWebhook, setIsSimulatingWebhook] = useState<boolean>(false);
   const [webhookError, setWebhookError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(300);
+  
+  // เพิ่ม State บังคับให้เป็นสถานะจ่ายเงินแล้วทันทีเมื่อกดปุ่มจำลอง
+  const [isPaidLocally, setIsPaidLocally] = useState<boolean>(false);
 
   // Initialize checkout session from backend
   useEffect(() => {
@@ -49,7 +52,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setCheckoutData(data);
         }
       } catch (err: any) {
-        // Fallback อัตโนมัติเมื่ออยู่บน Vercel
         if (isMounted) {
           setCheckoutData({
             transactionId: 'TXN-' + Date.now(),
@@ -88,7 +90,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return () => clearInterval(interval);
   }, [secondsLeft]);
 
-  // Trigger Simulated Webhook Handler (แบบทันที ไม่ติดค้าง Timeout)
+  // กดจำลองการชำระเงิน -> สลับไปหน้าสำเร็จทันที
   const handleSimulatePayment = () => {
     setIsSimulatingWebhook(true);
     setWebhookError(null);
@@ -102,23 +104,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       signature: checkoutData?.mockSignature || 'sig_demo_pass'
     };
 
-    // ส่งคำขอเบื้องหลังแบบไม่รอ response
     triggerPaymentWebhook(webhookPayload).catch(() => {
-      console.warn('Backend unavailable, proceeding with demo mode');
+      console.warn('Backend unavailable, proceeding in demo mode');
     });
 
-    // แสดงสถานะหมุนโหลด 0.5 วินาทีแล้วตัดเข้าหน้าสำเร็จทันที
+    // หน่วง 0.3 วินาทีแล้วเปลี่ยนหน้าจอเป็นชำระเงินสำเร็จทันที
     setTimeout(() => {
       setIsSimulatingWebhook(false);
-      onPaymentSuccess();
-    }, 500);
+      setIsPaidLocally(true); // ปรับหน้าจอใน Modal ทันที
+      onPaymentSuccess();     // ส่งต่อให้อัปเดตระบบ
+    }, 300);
   };
 
   const minutes = Math.floor(secondsLeft / 60);
   const remainingSeconds = secondsLeft % 60;
   const timeDisplay = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 
-  const isAlreadyPaid = order.paymentStatus === 'paid';
+  // หากจ่ายแล้วในฐานข้อมูล หรือกดปุ่มจำลองสำเร็จแล้ว ให้ถือว่าชำระแล้ว
+  const isAlreadyPaid = order.paymentStatus === 'paid' || isPaidLocally;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
