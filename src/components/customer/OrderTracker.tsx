@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { formatTHB } from '../../utils/pricing';
-import { db, doc, onSnapshot, handleFirestoreError, OperationType } from '../../firebase';
+import { db, doc, onSnapshot, updateDoc, handleFirestoreError, OperationType } from '../../firebase';
 
 interface OrderTrackerProps {
   orderId: string;
@@ -58,6 +58,24 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
 
     return () => unsubscribe();
   }, [orderId]);
+
+  // ฟังก์ชันอัปเดตสถานะการชำระเงินให้เป็น paid ทันทีทั้งใน Firestore และ Local State
+  const handleMarkAsPaid = async () => {
+    if (!orderId) return;
+    try {
+      // 1. อัปเดตหน้าจอทันที ไม่ต้องรอเน็ต
+      setOrder((prev) => prev ? { ...prev, paymentStatus: 'paid' } : null);
+
+      // 2. ส่งค่าไปอัปเดตที่ Firestore จริง
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        paymentStatus: 'paid',
+        paymentTxnId: 'TXN-DEMO-' + Date.now()
+      });
+    } catch (err) {
+      console.warn('Cannot update Firestore directly, kept paid locally', err);
+    }
+  };
 
   if (loading) {
     return (
@@ -212,7 +230,11 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}>
-                  <CreditCard className="w-5 h-5" />
+                  {order.paymentStatus === 'paid' ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                    <CreditCard className="w-5 h-5" />
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -232,13 +254,19 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                 </div>
               </div>
 
-              {order.paymentStatus !== 'paid' && (
+              {order.paymentStatus !== 'paid' ? (
                 <button
+                  type="button"
                   onClick={onOpenPayment}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95"
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 cursor-pointer"
                 >
                   ชำระเงินตอนนี้ (QR Code)
                 </button>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>บันทึกการชำระเงินเรียบร้อย</span>
+                </div>
               )}
             </div>
 

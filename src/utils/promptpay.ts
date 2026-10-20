@@ -2,13 +2,12 @@
  * Thai QR Payment (PromptPay) payload builder — EMVCo format.
  *
  * Receiver info taken from the shop's "make by KBank" Thai QR:
- *   00020101021129390016A000000677010111031500466600218263653037645802TH63045CD2
- *   → PromptPay e-Wallet ID (tag 29/03) = 004666002182636
+ *   PromptPay e-Wallet ID = 004999074794586
  */
 export const PROMPTPAY_RECEIVER = {
-  ewalletId: '004666002182636',
-  accountName: 'นาย ภูวนนท์ ผินประดับ',
-  maskedAccount: 'xxx-x-x6486-x',
+  ewalletId: '004999074794586',
+  accountName: 'นาย ธนาวุฒิ สระทองอ้าย',
+  maskedAccount: 'xxx-x-x9391-x',
   provider: 'make by KBank',
 };
 
