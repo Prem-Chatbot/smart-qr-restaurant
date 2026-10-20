@@ -14,23 +14,24 @@ import {
 import { Order, OrderStatus } from '../../types';
 import { formatTHB } from '../../utils/pricing';
 import { db, doc, onSnapshot, updateDoc, handleFirestoreError, OperationType } from '../../firebase';
+import { PaymentModal } from './PaymentModal';
 
 interface OrderTrackerProps {
   orderId: string;
   onBackToMenu: () => void;
-  onOpenPayment: () => void;
+  onOpenPayment?: () => void;
 }
 
 export const OrderTracker: React.FC<OrderTrackerProps> = ({
   orderId,
-  onBackToMenu,
-  onOpenPayment
+  onBackToMenu
 }) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // ดึงสถานะการจ่ายเงินที่บันทึกไว้ใน Browser เพื่อให้อยู่ถาวรแม้รีเฟรชหน้า
+  
+  // State สำหรับควบคุมการเปิด-ปิดหน้าต่างชำระเงินในหน้านี้โดยตรง
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isPaid, setIsPaid] = useState<boolean>(() => {
     return localStorage.getItem(`paid_${orderId}`) === 'true';
   });
@@ -68,9 +69,10 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
     return () => unsubscribe();
   }, [orderId]);
 
-  // ฟังก์ชันกดเปลี่ยนสถานะเป็นชำระเงินสำเร็จทันที
-  const handleConfirmPaymentNow = async () => {
+  // ฟังก์ชันเมื่อกดยืนยันชำระเงินสำเร็จในหน้าต่าง Popup
+  const handlePaymentSuccess = async () => {
     setIsPaid(true);
+    setIsModalOpen(false);
     localStorage.setItem(`paid_${orderId}`, 'true');
 
     try {
@@ -111,6 +113,8 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
       </div>
     );
   }
+
+  const isActuallyPaid = order.paymentStatus === 'paid' || isPaid;
 
   const getStepState = (target: OrderStatus) => {
     if (order.status === 'cancelled') return 'cancelled';
@@ -228,15 +232,15 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
               </div>
             </div>
 
-            {/* Payment Status Box */}
+            {/* Payment Status Pill & Action */}
             <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  isPaid
+                  isActuallyPaid
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {isPaid ? (
+                  {isActuallyPaid ? (
                     <CheckCircle2 className="w-5 h-5" />
                   ) : (
                     <CreditCard className="w-5 h-5" />
@@ -246,11 +250,11 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-stone-800">สถานะการชำระเงิน:</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      isPaid
+                      isActuallyPaid
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {isPaid ? 'ชำระแล้ว (Paid)' : 'รอชำระเงิน (Pending)'}
+                      {isActuallyPaid ? 'ชำระแล้ว (Paid)' : 'รอชำระเงิน (Pending)'}
                     </span>
                   </div>
                   <span className="text-xs text-stone-500 block">
@@ -259,24 +263,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              {!isPaid ? (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={onOpenPayment}
-                    className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold transition cursor-pointer"
-                  >
-                    ดู QR Code
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmPaymentNow}
-                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
-                  >
-                    ✓ ยืนยันชำระเงินแล้ว
-                  </button>
-                </div>
+              {!isActuallyPaid ? (
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(true)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 cursor-pointer"
+                >
+                  ชำระเงินตอนนี้ (QR Code)
+                </button>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-300">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -355,6 +349,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ฝังหน้าต่าง PaymentModal ไว้ตรงนี้โดยตรง ไม่ต้องผ่าน App.tsx */}
+      <PaymentModal
+        order={order}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
 
     </div>
   );
