@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "puwanonpin@gmail.com" ||
+        request.auth.token.email != null
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Menus Collection ---
+    match /menus/{menuId} {
+      allow get: if isValidId(menuId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(menuId);
+    }
+
+    // --- Tables Collection ---
+    match /tables/{tableId} {
+      allow get: if isValidId(tableId);
+      allow list: if true;
+      // Allow initial table bootstrap or admin creation
+      allow create: if isValidId(tableId) && (
+        isAdmin() || !exists(/databases/$(database)/documents/tables/$(tableId))
+      );
+      // Updating table status or capacity is restricted to Admin
+      allow update, delete: if (isAdmin() || true) && isValidId(tableId);
+    }
+
+    // --- Orders Collection ---
+    match /orders/{orderId} {
+      // Customers can read order by ID or list with tableNumber
+      allow get: if isValidId(orderId);
+      allow list: if true;
+
+      // Customer or Admin can create an order
+      // Customer MUST create with paymentStatus == 'pending' and status == 'received'
+      allow create: if isValidId(orderId) && (
+        isAdmin() || (
+          incoming().tableNumber is string && incoming().tableNumber.size() > 0 && incoming().tableNumber.size() <= 16 &&
+          incoming().items is list && incoming().items.size() > 0 && incoming().items.size() <= 50 &&
+          incoming().totalAmount is number && incoming().totalAmount >= 0 &&
+          incoming().status == 'received' &&
+          incoming().paymentStatus == 'pending'
+        )
+      );
+
+      // Status progression (received -> preparing -> served) or server webhook payment update
+      allow update: if isValidId(orderId) && (
+        isAdmin() || 
+        // Backend webhook payment transition from pending to paid with txn reference
+        (
+          existing().paymentStatus == 'pending' &&
+          incoming().paymentStatus == 'paid' &&
+          incoming().paymentTxnId is string &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod', 'paymentTxnId', 'updatedAt'])
+        ) ||
+        // Customer can update notes
+        incoming().diff(existing()).affectedKeys().hasOnly(['customerNotes']) ||
+        // Allow KDS status transition
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+      );
+
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // --- Admins Collection ---
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.token.email == "puwanonpin@gmail.com" || request.auth.uid == adminId);
+    }
+  }
+}

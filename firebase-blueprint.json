@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "Menu": {
+      "title": "Menu Item",
+      "description": "Represents a food or beverage dish offered by the restaurant",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the menu item",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "description": "Dish name in Thai/English",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "description": "Ingredients and taste description",
+          "maxLength": 300
+        },
+        "price": {
+          "type": "number",
+          "description": "Price in Thai Baht (THB)"
+        },
+        "category": {
+          "type": "string",
+          "description": "Menu category",
+          "enum": ["main", "appetizer", "dessert", "beverage", "special"]
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the dish photo",
+          "maxLength": 1000
+        },
+        "isAvailable": {
+          "type": "boolean",
+          "description": "Availability status of the item"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the menu was created"
+        }
+      },
+      "required": ["name", "price", "category", "isAvailable"]
+    },
+    "Table": {
+      "title": "Dining Table",
+      "description": "Represents a restaurant table with QR ordering context",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the table",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 32
+        },
+        "tableNumber": {
+          "type": "string",
+          "description": "Visible table number e.g. T01, T02",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "status": {
+          "type": "string",
+          "description": "Current occupancy status",
+          "enum": ["available", "occupied", "reserved"]
+        },
+        "capacity": {
+          "type": "number",
+          "description": "Number of seats at this table"
+        }
+      },
+      "required": ["tableNumber", "status"]
+    },
+    "Order": {
+      "title": "Customer Order",
+      "description": "An order placed from a table containing line items and payment state",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique order ID",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 64
+        },
+        "tableNumber": {
+          "type": "string",
+          "description": "Table identifier placing this order",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "items": {
+          "type": "array",
+          "description": "List of ordered items with quantities and custom notes"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total order amount in THB"
+        },
+        "status": {
+          "type": "string",
+          "description": "Order fulfillment status in KDS",
+          "enum": ["received", "preparing", "served", "cancelled"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Safe payment lifecycle status",
+          "enum": ["pending", "paid", "failed", "refunded"]
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment method used (e.g., promptpay_qr, cash, card_demo)",
+          "maxLength": 50
+        },
+        "paymentTxnId": {
+          "type": "string",
+          "description": "Payment transaction or webhook reference ID",
+          "maxLength": 128
+        },
+        "customerNotes": {
+          "type": "string",
+          "description": "General table-level instructions",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Order creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last order update timestamp"
+        }
+      },
+      "required": ["tableNumber", "items", "totalAmount", "status", "paymentStatus"]
+    },
+    "Admin": {
+      "title": "Admin Profile",
+      "description": "Authorized restaurant staff or manager document",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Auth UID of the admin",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Staff email address",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "description": "Role level (admin, manager, kitchen)",
+          "enum": ["admin", "manager", "kitchen"]
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/menus/{menuId}": {
+      "schema": "#/entities/Menu",
+      "description": "Public food menu items available for browsing and ordering"
+    },
+    "/tables/{tableId}": {
+      "schema": "#/entities/Table",
+      "description": "Restaurant tables and their current status"
+    },
+    "/orders/{orderId}": {
+      "schema": "#/entities/Order",
+      "description": "Orders created by customer tables or staff"
+    },
+    "/admins/{adminId}": {
+      "schema": "#/entities/Admin",
+      "description": "List of authorized staff IDs permitted to update menus, tables and order statuses"
+    }
+  }
+}
